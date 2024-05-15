@@ -1,0 +1,1146 @@
+ly after a delay after a touch (which needs to be cancelled to avoid duplication), or
+ * an actual click which should be permitted.
+ *
+ * @param {Event} event
+ * @returns {boolean}
+ */
+FastClick.prototype.onClick = function(event) {
+	'use strict';
+	var permitted;
+
+	// It's possible for another FastClick-like library delivered with third-party code to fire a click event before FastClick does (issue #44). In that case, set the click-tracking flag back to false and return early. This will cause onTouchEnd to return early.
+	if (this.trackingClick) {
+		this.targetElement = null;
+		this.trackingClick = false;
+		return true;
+	}
+
+	// Very odd behaviour on iOS (issue #18): if a submit element is present inside a form and the user hits enter in the iOS simulator or clicks the Go button on the pop-up OS keyboard the a kind of 'fake' click event will be triggered with the submit-type input element as the target.
+	if (event.target.type === 'submit' && event.detail === 0) {
+		return true;
+	}
+
+	permitted = this.onMouse(event);
+
+	// Only unset targetElement if the click is not permitted. This will ensure that the check for !targetElement in onMouse fails and the browser's click doesn't go through.
+	if (!permitted) {
+		this.targetElement = null;
+	}
+
+	// If clicks are permitted, return true for the action to go through.
+	return permitted;
+};
+
+
+/**
+ * Remove all FastClick's event listeners.
+ *
+ * @returns {void}
+ */
+FastClick.prototype.destroy = function() {
+	'use strict';
+	var layer = this.layer;
+
+	if (this.deviceIsAndroid) {
+		layer.removeEventListener('mouseover', this.onMouse, true);
+		layer.removeEventListener('mousedown', this.onMouse, true);
+		layer.removeEventListener('mouseup', this.onMouse, true);
+	}
+
+	layer.removeEventListener('click', this.onClick, true);
+	layer.removeEventListener('touchstart', this.onTouchStart, false);
+	layer.removeEventListener('touchmove', this.onTouchMove, false);
+	layer.removeEventListener('touchend', this.onTouchEnd, false);
+	layer.removeEventListener('touchcancel', this.onTouchCancel, false);
+};
+
+
+/**
+ * Check whether FastClick is needed.
+ *
+ * @param {Element} layer The layer to listen on
+ */
+FastClick.notNeeded = function(layer) {
+	'use strict';
+	var metaViewport;
+	var chromeVersion;
+
+	// Devices that don't support touch don't need FastClick
+	if (typeof window.ontouchstart === 'undefined') {
+		return true;
+	}
+
+	// Chrome version - zero for other browsers
+	chromeVersion = +(/Chrome\/([0-9]+)/.exec(navigator.userAgent) || [,0])[1];
+
+	if (chromeVersion) {
+
+		if (FastClick.prototype.deviceIsAndroid) {
+			metaViewport = document.querySelector('meta[name=viewport]');
+			
+			if (metaViewport) {
+				// Chrome on Android with user-scalable="no" doesn't need FastClick (issue #89)
+				if (metaViewport.content.indexOf('user-scalable=no') !== -1) {
+					return true;
+				}
+				// Chrome 32 and above with width=device-width or less don't need FastClick
+				if (chromeVersion > 31 && window.innerWidth <= window.screen.width) {
+					return true;
+				}
+			}
+
+		// Chrome desktop doesn't need FastClick (issue #15)
+		} else {
+			return true;
+		}
+	}
+
+	// IE10 with -ms-touch-action: none, which disables double-tap-to-zoom (issue #97)
+	if (layer.style.msTouchAction === 'none') {
+		return true;
+	}
+
+	return false;
+};
+
+
+/**
+ * Factory method for creating a FastClick object
+ *
+ * @param {Element} layer The layer to listen on
+ */
+FastClick.attach = function(layer) {
+	'use strict';
+	return new FastClick(layer);
+};
+
+
+if (typeof define !== 'undefined' && define.amd) {
+
+	// AMD. Register as an anonymous module.
+	define(function() {
+		'use strict';
+		return FastClick;
+	});
+} else if (typeof module !== 'undefined' && module.exports) {
+	module.exports = FastClick.attach;
+	module.exports.FastClick = FastClick;
+} else {
+	window.FastClick = FastClick;
+}
+
+});
+
+require.register("component~indexof@0.0.3", function (exports, module) {
+module.exports = function(arr, obj){
+  if (arr.indexOf) return arr.indexOf(obj);
+  for (var i = 0; i < arr.length; ++i) {
+    if (arr[i] === obj) return i;
+  }
+  return -1;
+};
+});
+
+require.register("component~classes@1.2.1", function (exports, module) {
+/**
+ * Module dependencies.
+ */
+
+var index = require('component~indexof@0.0.3');
+
+/**
+ * Whitespace regexp.
+ */
+
+var re = /\s+/;
+
+/**
+ * toString reference.
+ */
+
+var toString = Object.prototype.toString;
+
+/**
+ * Wrap `el` in a `ClassList`.
+ *
+ * @param {Element} el
+ * @return {ClassList}
+ * @api public
+ */
+
+module.exports = function(el){
+  return new ClassList(el);
+};
+
+/**
+ * Initialize a new ClassList for `el`.
+ *
+ * @param {Element} el
+ * @api private
+ */
+
+function ClassList(el) {
+  if (!el) throw new Error('A DOM element reference is required');
+  this.el = el;
+  this.list = el.classList;
+}
+
+/**
+ * Add class `name` if not already present.
+ *
+ * @param {String} name
+ * @return {ClassList}
+ * @api public
+ */
+
+ClassList.prototype.add = function(name){
+  // classList
+  if (this.list) {
+    this.list.add(name);
+    return this;
+  }
+
+  // fallback
+  var arr = this.array();
+  var i = index(arr, name);
+  if (!~i) arr.push(name);
+  this.el.className = arr.join(' ');
+  return this;
+};
+
+/**
+ * Remove class `name` when present, or
+ * pass a regular expression to remove
+ * any which match.
+ *
+ * @param {String|RegExp} name
+ * @return {ClassList}
+ * @api public
+ */
+
+ClassList.prototype.remove = function(name){
+  if ('[object RegExp]' == toString.call(name)) {
+    return this.removeMatching(name);
+  }
+
+  // classList
+  if (this.list) {
+    this.list.remove(name);
+    return this;
+  }
+
+  // fallback
+  var arr = this.array();
+  var i = index(arr, name);
+  if (~i) arr.splice(i, 1);
+  this.el.className = arr.join(' ');
+  return this;
+};
+
+/**
+ * Remove all classes matching `re`.
+ *
+ * @param {RegExp} re
+ * @return {ClassList}
+ * @api private
+ */
+
+ClassList.prototype.removeMatching = function(re){
+  var arr = this.array();
+  for (var i = 0; i < arr.length; i++) {
+    if (re.test(arr[i])) {
+      this.remove(arr[i]);
+    }
+  }
+  return this;
+};
+
+/**
+ * Toggle class `name`, can force state via `force`.
+ *
+ * For browsers that support classList, but do not support `force` yet,
+ * the mistake will be detected and corrected.
+ *
+ * @param {String} name
+ * @param {Boolean} force
+ * @return {ClassList}
+ * @api public
+ */
+
+ClassList.prototype.toggle = function(name, force){
+  // classList
+  if (this.list) {
+    if ("undefined" !== typeof force) {
+      if (force !== this.list.toggle(name, force)) {
+        this.list.toggle(name); // toggle again to correct
+      }
+    } else {
+      this.list.toggle(name);
+    }
+    return this;
+  }
+
+  // fallback
+  if ("undefined" !== typeof force) {
+    if (!force) {
+      this.remove(name);
+    } else {
+      this.add(name);
+    }
+  } else {
+    if (this.has(name)) {
+      this.remove(name);
+    } else {
+      this.add(name);
+    }
+  }
+
+  return this;
+};
+
+/**
+ * Return an array of classes.
+ *
+ * @return {Array}
+ * @api public
+ */
+
+ClassList.prototype.array = function(){
+  var str = this.el.className.replace(/^\s+|\s+$/g, '');
+  var arr = str.split(re);
+  if ('' === arr[0]) arr.shift();
+  return arr;
+};
+
+/**
+ * Check if class `name` is present.
+ *
+ * @param {String} name
+ * @return {ClassList}
+ * @api public
+ */
+
+ClassList.prototype.has =
+ClassList.prototype.contains = function(name){
+  return this.list
+    ? this.list.contains(name)
+    : !! ~index(this.array(), name);
+};
+
+});
+
+require.register("component~event@0.1.4", function (exports, module) {
+var bind = window.addEventListener ? 'addEventListener' : 'attachEvent',
+    unbind = window.removeEventListener ? 'removeEventListener' : 'detachEvent',
+    prefix = bind !== 'addEventListener' ? 'on' : '';
+
+/**
+ * Bind `el` event `type` to `fn`.
+ *
+ * @param {Element} el
+ * @param {String} type
+ * @param {Function} fn
+ * @param {Boolean} capture
+ * @return {Function}
+ * @api public
+ */
+
+exports.bind = function(el, type, fn, capture){
+  el[bind](prefix + type, fn, capture || false);
+  return fn;
+};
+
+/**
+ * Unbind `el` event `type`'s callback `fn`.
+ *
+ * @param {Element} el
+ * @param {String} type
+ * @param {Function} fn
+ * @param {Boolean} capture
+ * @return {Function}
+ * @api public
+ */
+
+exports.unbind = function(el, type, fn, capture){
+  el[unbind](prefix + type, fn, capture || false);
+  return fn;
+};
+});
+
+require.register("component~query@0.0.3", function (exports, module) {
+function one(selector, el) {
+  return el.querySelector(selector);
+}
+
+exports = module.exports = function(selector, el){
+  el = el || document;
+  return one(selector, el);
+};
+
+exports.all = function(selector, el){
+  el = el || document;
+  return el.querySelectorAll(selector);
+};
+
+exports.engine = function(obj){
+  if (!obj.one) throw new Error('.one callback required');
+  if (!obj.all) throw new Error('.all callback required');
+  one = obj.one;
+  exports.all = obj.all;
+  return exports;
+};
+
+});
+
+require.register("component~matches-selector@0.1.5", function (exports, module) {
+/**
+ * Module dependencies.
+ */
+
+var query = require('component~query@0.0.3');
+
+/**
+ * Element prototype.
+ */
+
+var proto = Element.prototype;
+
+/**
+ * Vendor function.
+ */
+
+var vendor = proto.matches
+  || proto.webkitMatchesSelector
+  || proto.mozMatchesSelector
+  || proto.msMatchesSelector
+  || proto.oMatchesSelector;
+
+/**
+ * Expose `match()`.
+ */
+
+module.exports = match;
+
+/**
+ * Match `el` to `selector`.
+ *
+ * @param {Element} el
+ * @param {String} selector
+ * @return {Boolean}
+ * @api public
+ */
+
+function match(el, selector) {
+  if (!el || el.nodeType !== 1) return false;
+  if (vendor) return vendor.call(el, selector);
+  var nodes = query.all(selector, el.parentNode);
+  for (var i = 0; i < nodes.length; ++i) {
+    if (nodes[i] == el) return true;
+  }
+  return false;
+}
+
+});
+
+require.register("component~closest@0.1.4", function (exports, module) {
+var matches = require('component~matches-selector@0.1.5')
+
+module.exports = function (element, selector, checkYoSelf, root) {
+  element = checkYoSelf ? {parentNode: element} : element
+
+  root = root || document
+
+  // Make sure `element !== document` and `element != null`
+  // otherwise we get an illegal invocation
+  while ((element = element.parentNode) && element !== document) {
+    if (matches(element, selector))
+      return element
+    // After `matches` on the edge case that
+    // the selector matches the root
+    // (when the root is not the document)
+    if (element === root)
+      return
+  }
+}
+
+});
+
+require.register("component~delegate@0.2.3", function (exports, module) {
+/**
+ * Module dependencies.
+ */
+
+var closest = require('component~closest@0.1.4')
+  , event = require('component~event@0.1.4');
+
+/**
+ * Delegate event `type` to `selector`
+ * and invoke `fn(e)`. A callback function
+ * is returned which may be passed to `.unbind()`.
+ *
+ * @param {Element} el
+ * @param {String} selector
+ * @param {String} type
+ * @param {Function} fn
+ * @param {Boolean} capture
+ * @return {Function}
+ * @api public
+ */
+
+exports.bind = function(el, selector, type, fn, capture){
+  return event.bind(el, type, function(e){
+    var target = e.target || e.srcElement;
+    e.delegateTarget = closest(target, selector, true, el);
+    if (e.delegateTarget) fn.call(el, e);
+  }, capture);
+};
+
+/**
+ * Unbind event `type`'s callback `fn`.
+ *
+ * @param {Element} el
+ * @param {String} type
+ * @param {Function} fn
+ * @param {Boolean} capture
+ * @api public
+ */
+
+exports.unbind = function(el, type, fn, capture){
+  event.unbind(el, type, fn, capture);
+};
+
+});
+
+require.register("component~events@1.0.9", function (exports, module) {
+
+/**
+ * Module dependencies.
+ */
+
+var events = require('component~event@0.1.4');
+var delegate = require('component~delegate@0.2.3');
+
+/**
+ * Expose `Events`.
+ */
+
+module.exports = Events;
+
+/**
+ * Initialize an `Events` with the given
+ * `el` object which events will be bound to,
+ * and the `obj` which will receive method calls.
+ *
+ * @param {Object} el
+ * @param {Object} obj
+ * @api public
+ */
+
+function Events(el, obj) {
+  if (!(this instanceof Events)) return new Events(el, obj);
+  if (!el) throw new Error('element required');
+  if (!obj) throw new Error('object required');
+  this.el = el;
+  this.obj = obj;
+  this._events = {};
+}
+
+/**
+ * Subscription helper.
+ */
+
+Events.prototype.sub = function(event, method, cb){
+  this._events[event] = this._events[event] || {};
+  this._events[event][method] = cb;
+};
+
+/**
+ * Bind to `event` with optional `method` name.
+ * When `method` is undefined it becomes `event`
+ * with the "on" prefix.
+ *
+ * Examples:
+ *
+ *  Direct event handling:
+ *
+ *    events.bind('click') // implies "onclick"
+ *    events.bind('click', 'remove')
+ *    events.bind('click', 'sort', 'asc')
+ *
+ *  Delegated event handling:
+ *
+ *    events.bind('click li > a')
+ *    events.bind('click li > a', 'remove')
+ *    events.bind('click a.sort-ascending', 'sort', 'asc')
+ *    events.bind('click a.sort-descending', 'sort', 'desc')
+ *
+ * @param {String} event
+ * @param {String|function} [method]
+ * @return {Function} callback
+ * @api public
+ */
+
+Events.prototype.bind = function(event, method){
+  var e = parse(event);
+  var el = this.el;
+  var obj = this.obj;
+  var name = e.name;
+  var method = method || 'on' + name;
+  var args = [].slice.call(arguments, 2);
+
+  // callback
+  function cb(){
+    var a = [].slice.call(arguments).concat(args);
+    obj[method].apply(obj, a);
+  }
+
+  // bind
+  if (e.selector) {
+    cb = delegate.bind(el, e.selector, name, cb);
+  } else {
+    events.bind(el, name, cb);
+  }
+
+  // subscription for unbinding
+  this.sub(name, method, cb);
+
+  return cb;
+};
+
+/**
+ * Unbind a single binding, all bindings for `event`,
+ * or all bindings within the manager.
+ *
+ * Examples:
+ *
+ *  Unbind direct handlers:
+ *
+ *     events.unbind('click', 'remove')
+ *     events.unbind('click')
+ *     events.unbind()
+ *
+ * Unbind delegate handlers:
+ *
+ *     events.unbind('click', 'remove')
+ *     events.unbind('click')
+ *     events.unbind()
+ *
+ * @param {String|Function} [event]
+ * @param {String|Function} [method]
+ * @api public
+ */
+
+Events.prototype.unbind = function(event, method){
+  if (0 == arguments.length) return this.unbindAll();
+  if (1 == arguments.length) return this.unbindAllOf(event);
+
+  // no bindings for this event
+  var bindings = this._events[event];
+  if (!bindings) return;
+
+  // no bindings for this method
+  var cb = bindings[method];
+  if (!cb) return;
+
+  events.unbind(this.el, event, cb);
+};
+
+/**
+ * Unbind all events.
+ *
+ * @api private
+ */
+
+Events.prototype.unbindAll = function(){
+  for (var event in this._events) {
+    this.unbindAllOf(event);
+  }
+};
+
+/**
+ * Unbind all events for `event`.
+ *
+ * @param {String} event
+ * @api private
+ */
+
+Events.prototype.unbindAllOf = function(event){
+  var bindings = this._events[event];
+  if (!bindings) return;
+
+  for (var method in bindings) {
+    this.unbind(event, method);
+  }
+};
+
+/**
+ * Parse `event`.
+ *
+ * @param {String} event
+ * @return {Object}
+ * @api private
+ */
+
+function parse(event) {
+  var parts = event.split(/ +/);
+  return {
+    name: parts.shift(),
+    selector: parts.join(' ')
+  }
+}
+
+});
+
+require.register("switchery", function (exports, module) {
+/**
+ * Switchery 0.8.1
+ * http://abpetkov.github.io/switchery/
+ *
+ * Authored by Alexander Petkov
+ * https://github.com/abpetkov
+ *
+ * Copyright 2013-2015, Alexander Petkov
+ * License: The MIT License (MIT)
+ * http://opensource.org/licenses/MIT
+ *
+ */
+
+/**
+ * External dependencies.
+ */
+
+var transitionize = require('abpetkov~transitionize@0.0.3')
+  , fastclick = require('ftlabs~fastclick@v0.6.11')
+  , classes = require('component~classes@1.2.1')
+  , events = require('component~events@1.0.9');
+
+/**
+ * Expose `Switchery`.
+ */
+
+module.exports = Switchery;
+
+/**
+ * Set Switchery default values.
+ *
+ * @api public
+ */
+
+var defaults = {
+    color             : '#64bd63'
+  , secondaryColor    : '#dfdfdf'
+  , jackColor         : '#fff'
+  , jackSecondaryColor: null
+  , className         : 'switchery'
+  , disabled          : false
+  , disabledOpacity   : 0.5
+  , speed             : '0.4s'
+  , size              : 'default'
+};
+
+/**
+ * Create Switchery object.
+ *
+ * @param {Object} element
+ * @param {Object} options
+ * @api public
+ */
+
+function Switchery(element, options) {
+  if (!(this instanceof Switchery)) return new Switchery(element, options);
+
+  this.element = element;
+  this.options = options || {};
+
+  for (var i in defaults) {
+    if (this.options[i] == null) {
+      this.options[i] = defaults[i];
+    }
+  }
+
+  if (this.element != null && this.element.type == 'checkbox') this.init();
+  if (this.isDisabled() === true) this.disable();
+}
+
+/**
+ * Hide the target element.
+ *
+ * @api private
+ */
+
+Switchery.prototype.hide = function() {
+  this.element.style.display = 'none';
+};
+
+/**
+ * Show custom switch after the target element.
+ *
+ * @api private
+ */
+
+Switchery.prototype.show = function() {
+  var switcher = this.create();
+  this.insertAfter(this.element, switcher);
+};
+
+/**
+ * Create custom switch.
+ *
+ * @returns {Object} this.switcher
+ * @api private
+ */
+
+Switchery.prototype.create = function() {
+  this.switcher = document.createElement('span');
+  this.jack = document.createElement('small');
+  this.switcher.appendChild(this.jack);
+  this.switcher.className = this.options.className;
+  this.events = events(this.switcher, this);
+
+  return this.switcher;
+};
+
+/**
+ * Insert after element after another element.
+ *
+ * @param {Object} reference
+ * @param {Object} target
+ * @api private
+ */
+
+Switchery.prototype.insertAfter = function(reference, target) {
+  reference.parentNode.insertBefore(target, reference.nextSibling);
+};
+
+/**
+ * Set switch jack proper position.
+ *
+ * @param {Boolean} clicked - we need this in order to uncheck the input when the switch is clicked
+ * @api private
+ */
+
+Switchery.prototype.setPosition = function (clicked) {
+  var checked = this.isChecked()
+    , switcher = this.switcher
+    , jack = this.jack;
+
+  if (clicked && checked) checked = false;
+  else if (clicked && !checked) checked = true;
+
+  if (checked === true) {
+    this.element.checked = true;
+
+    if (window.getComputedStyle) jack.style.left = parseInt(window.getComputedStyle(switcher).width) - parseInt(window.getComputedStyle(jack).width) + 'px';
+    else jack.style.left = parseInt(switcher.currentStyle['width']) - parseInt(jack.currentStyle['width']) + 'px';
+
+    if (this.options.color) this.colorize();
+    this.setSpeed();
+  } else {
+    jack.style.left = 0;
+    this.element.checked = false;
+    this.switcher.style.boxShadow = 'inset 0 0 0 0 ' + this.options.secondaryColor;
+    this.switcher.style.borderColor = this.options.secondaryColor;
+    this.switcher.style.backgroundColor = (this.options.secondaryColor !== defaults.secondaryColor) ? this.options.secondaryColor : '#fff';
+    this.jack.style.backgroundColor = (this.options.jackSecondaryColor !== this.options.jackColor) ? this.options.jackSecondaryColor : this.options.jackColor;
+    this.setSpeed();
+  }
+};
+
+/**
+ * Set speed.
+ *
+ * @api private
+ */
+
+Switchery.prototype.setSpeed = function() {
+  var switcherProp = {}
+    , jackProp = {
+        'background-color': this.options.speed
+      , 'left': this.options.speed.replace(/[a-z]/, '') / 2 + 's'
+    };
+
+  if (this.isChecked()) {
+    switcherProp = {
+        'border': this.options.speed
+      , 'box-shadow': this.options.speed
+      , 'background-color': this.options.speed.replace(/[a-z]/, '') * 3 + 's'
+    };
+  } else {
+    switcherProp = {
+        'border': this.options.speed
+      , 'box-shadow': this.options.speed
+    };
+  }
+
+  transitionize(this.switcher, switcherProp);
+  transitionize(this.jack, jackProp);
+};
+
+/**
+ * Set switch size.
+ *
+ * @api private
+ */
+
+Switchery.prototype.setSize = function() {
+  var small = 'switchery-small'
+    , normal = 'switchery-default'
+    , large = 'switchery-large';
+
+  switch (this.options.size) {
+    case 'small':
+      classes(this.switcher).add(small)
+      break;
+    case 'large':
+      classes(this.switcher).add(large)
+      break;
+    default:
+      classes(this.switcher).add(normal)
+      break;
+  }
+};
+
+/**
+ * Set switch color.
+ *
+ * @api private
+ */
+
+Switchery.prototype.colorize = function() {
+  var switcherHeight = this.switcher.offsetHeight / 2;
+
+  this.switcher.style.backgroundColor = this.options.color;
+  this.switcher.style.borderColor = this.options.color;
+  this.switcher.style.boxShadow = 'inset 0 0 0 ' + switcherHeight + 'px ' + this.options.color;
+  this.jack.style.backgroundColor = this.options.jackColor;
+};
+
+/**
+ * Handle the onchange event.
+ *
+ * @param {Boolean} state
+ * @api private
+ */
+
+Switchery.prototype.handleOnchange = function(state) {
+  if (document.dispatchEvent) {
+    var event = document.createEvent('HTMLEvents');
+    event.initEvent('change', true, true);
+    this.element.dispatchEvent(event);
+  } else {
+    this.element.fireEvent('onchange');
+  }
+};
+
+/**
+ * Handle the native input element state change.
+ * A `change` event must be fired in order to detect the change.
+ *
+ * @api private
+ */
+
+Switchery.prototype.handleChange = function() {
+  var self = this
+    , el = this.element;
+
+  if (el.addEventListener) {
+    el.addEventListener('change', function() {
+      self.setPosition();
+    });
+  } else {
+    el.attachEvent('onchange', function() {
+      self.setPosition();
+    });
+  }
+};
+
+/**
+ * Handle the switch click event.
+ *
+ * @api private
+ */
+
+Switchery.prototype.handleClick = function() {
+  var switcher = this.switcher;
+
+  fastclick(switcher);
+  this.events.bind('click', 'bindClick');
+};
+
+/**
+ * Attach all methods that need to happen on switcher click.
+ *
+ * @api private
+ */
+
+Switchery.prototype.bindClick = function() {
+  var parent = this.element.parentNode.tagName.toLowerCase()
+    , labelParent = (parent === 'label') ? false : true;
+
+  this.setPosition(labelParent);
+  this.handleOnchange(this.element.checked);
+};
+
+/**
+ * Mark an individual switch as already handled.
+ *
+ * @api private
+ */
+
+Switchery.prototype.markAsSwitched = function() {
+  this.element.setAttribute('data-switchery', true);
+};
+
+/**
+ * Check if an individual switch is already handled.
+ *
+ * @api private
+ */
+
+Switchery.prototype.markedAsSwitched = function() {
+  return this.element.getAttribute('data-switchery');
+};
+
+/**
+ * Initialize Switchery.
+ *
+ * @api private
+ */
+
+Switchery.prototype.init = function() {
+  this.hide();
+  this.show();
+  this.setSize();
+  this.setPosition();
+  this.markAsSwitched();
+  this.handleChange();
+  this.handleClick();
+};
+
+/**
+ * See if input is checked.
+ *
+ * @returns {Boolean}
+ * @api public
+ */
+
+Switchery.prototype.isChecked = function() {
+  return this.element.checked;
+};
+
+/**
+ * See if switcher should be disabled.
+ *
+ * @returns {Boolean}
+ * @api public
+ */
+
+Switchery.prototype.isDisabled = function() {
+  return this.options.disabled || this.element.disabled || this.element.readOnly;
+};
+
+/**
+ * Destroy all event handlers attached to the switch.
+ *
+ * @api public
+ */
+
+Switchery.prototype.destroy = function() {
+  this.events.unbind();
+};
+
+/**
+ * Enable disabled switch element.
+ *
+ * @api public
+ */
+
+Switchery.prototype.enable = function() {
+  if (this.options.disabled) this.options.disabled = false;
+  if (this.element.disabled) this.element.disabled = false;
+  if (this.element.readOnly) this.element.readOnly = false;
+  this.switcher.style.opacity = 1;
+  this.events.bind('click', 'bindClick');
+};
+
+/**
+ * Disable switch element.
+ *
+ * @api public
+ */
+
+Switchery.prototype.disable = function() {
+  if (!this.options.disabled) this.options.disabled = true;
+  if (!this.element.disabled) this.element.disabled = true;
+  if (!this.element.readOnly) this.element.readOnly = true;
+  this.switcher.style.opacity = this.options.disabledOpacity;
+  this.destroy();
+};
+
+});
+
+if (typeof exports == "object") {
+  module.exports = require("switchery");
+} else if (typeof define == "function" && define.amd) {
+  define("Switchery", [], function(){ return require("switchery"); });
+} else {
+  (this || window)["Switchery"] = require("switchery");
+}
+})()
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 €  0OS/2E’²  8   `cmapΌ»Ω  H  Vgaspÿÿ   T   glyf°>-ι  
+|  BΤheadiΙ   Ό   6hhea?Φ   τ   $hmtx†BΊ    °loca:3)¤     Ϊmaxp ύ {      name σςΟ  MP   postΏ¥J   RP  E      ¤‰^ΰ_<υ      Μ¶,    Π!ώªώ^ ΄             ΄ώ^ ήίώªώ¬                 μ    μ {                        k  3  3  Ρ f          €  §P  J        HL   @  ϋώf Ν΄Ά  A            d    ό  ²    Ο΄Ν8 u· 1Ή i²  «Ν«n² 1΄ ›Ή ―± ›΄ ―- ± ›²  ²Ω²  ² 1― i― 1²  ² i²  ― 1- - w«>² 1² ›² ό²  ±  ² 1±  ± 1΄  ΄  ²  ΄  ² 1²  ΄  ²  ±  ΄  ΄  ²  ΄  ΄  ΄ 1² ό²  ²7΄  ± ›² i± 1²  ±7²φ  ² 1²7±  ²  ²  ΄  ²  ΄  ² 1²  ±  ²  ΄  ²  ²  ²  ²  ΄  ² i΄  ΄ 1΄  ²  «7²  ± ›· 1± 1² ―φ«² 1φ ^   ²  ² 1φ z² ―φ«φ ª  Ρ d  ° ®φ W d  « i« 1φ  φ  ²^«    ]ό  hφ  Ξ  ° e¬  ¬  ¬  «              ¶  w          ‘  ‘  ‘  ‘  ξ    N  N  N  N  N  φ ΅N  έ  έ  έ  έ  Ρ  `  γ              ®  ‰                  s  T  ς  ς  ς  ς  ς  φ Wς  #  #  #  #  d  ς  d     έ  έ  ώ  Ϋ  O q« ό  ΩT 8   - Ί- w- w Ί w wφ Gφ F  Ψ  w ®w eVώªφ 0φ Lμ 0« ―ί  Ω  φ M9 λ 0¶ x² ―φ φ B™ÿΈφ ^φ Wφ W1  9                L      0   F @   ~   ¬ ­ ÿ1ΗΙέ~    " & : D ¤ § ¬!!"""""""""+"H"eπϋÿÿ       ΅ ­ ®1ΖΙΨ~      & 9 D £ § ¬!!"""""""""+"H"dπϋÿÿÿγ  ÿΑ  ÿΐÿύϋύϊύμό ΰ·ΰ΄ΰ³ΰ²ΰ―ΰΰ”ΰ6ΰ4ΰ0ίΗίΌήέήΪήÒήΡήΓ  ήΗή»ήή„ιι    D   B                                                                w δ 
+                                                                       	 
+                        ! " # $ % & ' ( ) * + , - . / 0 1 2 3 4 5 6 7 8 9 : ; < = > ? @ A B C D E F G H I J K L M N O P Q R S T U V W X Y Z [ \ ] ^ _ ` a   „ … ‡ ‰ ‘ –  ΅   Ά ¤ £ ¥ § © ¨ ª « ­ ¬ ® ― ± ³ ² ΄ ¶ µ Ί Ή » Ό Ò p c d h Τ v  n j ή t i   †  ε q θ ι f u ί β α   ζ k z   ¦ Έ  b m δ   η ΰ l { Υ  € ƒ •     Κ Λ Ο Π Μ Ν ·   Ώ   Ψ e Φ Χ κ λ Σ w Ξ Ρ   ‚   ‹      “ ”   ’  › ™ ΐ Α Θ o Δ Ε Ζ x Ι Η Β     V V V V †   ά0–μϊ"JΐÒμ,x–ΤH†ΔψNΦ
+&RnΆ RÒZ”ά	"	N	„	ΐ	θ
+:
+†
+ÒnΎ$dκR†¶Ò.€Θψ@ΚXv¬θHx΄ϊ@dªζDt¦μ P^²²π6ªΰτn¬44Vh.hhhz¶Òτ>>>>ttttttt22222222222222222222222222222222xxxxxxxxx”¦ΈΖΰ6Xrª¶Ξζώ(R|ΚJ`ΈΜΰπ*x$^^^®Δτ  6 J ΐ ς!.!L!j!j!j    d     $ 8  3!%!!67632#&5454&#"7632#"/&54d8όϊΤύ,―5;\p.@?H #£B:&@9	
+8	
+8	=ϊf26μ_P1cPPh/&_a3LK9Bόÿ:
+<	>
+G		
+  ΟÿϋΙ°    46327632#"/&5491*)*)PRPP	X
+H....ϋτ΅TVXe  Νεb  	  '3#φ#TM8DώIƒQ…b*ύμ??εώη   u  Γ    3333!!!!###!7!!7!TUςV¦]ς\ώύSώθ\‹π\ώοVώΩ'[ώή"?ώ#έώ#aώήbώ(Ψώ(Ψb"a   1  η      ! % )  !!''!7'7!%'!'3#3#-‘)uύΨNTTA=[j<OώμώΫFT{?[*RSύx#O8ύv#ƒQ…\€M…)\iiώ2G"ύΒBI‹‹L?‹1Fύάcγώi#*φηύyώ 
+ i  °  
+     # ) - 3  '7!%'!7'7!%'!73#!#73##7JN1?ώ‘TTA=[j<OώμώΫFT{?[*RSeO8ώΐƒQ…Z²[µώ΅€M…E²[µi…[iώ2G"ύΒBI‹‹L?‹1Fύάcγώi#”ηSώlS”ύyώζSώlS”     j  	     $ *  '7!!7'7!%'!7'73#3#JN1?Ψ<OώμώΫFTώ«8It[lO8ώΐώ#sLR8Y2R8Y2i…ώBI‹‹L?‹8Fώ\*)ύϊi#*c	ώq[“ύΝώq[“  Ν ΅   3#ΝƒQ… η  n  η  	    !7!73#3#Ύ)uώτLO8ώΐƒQ…\€M…)\…ϊςi#”ηύyώ     1  ΅  	    '7!'73#3#JN1?ύώ#s;ƒQ…\€M…i…ϊλ*c ηύyώ   › •v	  	     # )  !7'7!'3#!#7%3#3#3#'#7.<OώμώΫFT)ƒQ…Z²[µώ'R8Y2‰€M…ίR8Y2‹²[µBI‹‹L?‹•ηSώlS”ώq[“ύΞώζώq[“WSώlS”  ― ™j  	    !7'7!'3#3#.<OώμώΫFT)ƒQ…\€M…BI‹‹L?‹•ηύyώ  › ³   #7³²[µSώlS”   ―‹j  	  !7'7!.<OώμώΫFTBI‹‹L?‹     ÿϋ{	   ?632#"/&54‘RPP	X
+§TVXe    › v    #7#7v²[µώ”²[µSώlS”ύxSώlS”             #  !!''%''%'!'-‘)uύΨNTTA=[2#TM8Dύ8It[?[*RSύx#O8ύv#)\iiώ2G"*ύμ??εύΊFώ\*)*Fύάcγώi#*    Ω 8b    ''φ#TM8D?[*RSb*ύμ??εύ³Fύάcγ             !!''!!''!'-‘)uύΨNϊ#TM8Dύ+<OύΪF8It[I#O8ύv#)\i*ύμ??εώBILFώ\*)ύϋi#*   1         !!''!!''!'-‘)uύΨNϊ#TM8Dύ+<OύΪFΒ?[*RSύx#O8ύv#)\i*ύμ??εώBILFύάcγώi#*     i 8p      '%'!!''ηTTA=[2#TM8Dύ+<OύΪFΒ?[*RSpiώ2G"*ύμ??εώBILFύάcγ   1  η       !!''!!''!'-‘)uύΨNTTA=[?+<OύΪFΒ?[*RSύx#O8ύv#)\iiώ2G"ύΒBILFύάcγώi#*      °p       '!!''%'!'ηTTA=[?+<OύΪF8It[?[*RSύx#O8ύv#piώ2G"ύΒBILFώ\*)*Fύάcγώi#*  i 8      !!''%''-‘)uύΨNTTA=[2#TM8D?[*RS)\iiώ2G"*ύμ??εύ³Fύάcγ             # )  !!''%'!!''%'!'-‘)uύΨNTTA=[2#TM8Dύ+<OύΪF8It[?[*RSύx#O8ύv#)\iiώ2G"*ύμ??εώBILFώ\*)*Fύάcγώi#*     1        #  !!''%'!!''!'-‘)uύΨNTTA=[2#TM8Dύ+<OύΪFΒ?[*RSύx#O8ύv#)\iiώ2G"*ύμ??εώBILFύάcγώi#*   ÿϋ{Ύ  '  ?632#"/&547632#"/&54‘RPP	X
+RPP	X
+§TVXeΕTVXe     wώΡ{½     7632#"/&542#5674'5‘RPP	X
+m,YDI[TVXeύ·ƒVmλ++“w**   > •v    #73#v²[µÒR8Y2SώlS”ύxώq[“  1  j  	    !7'7!!7'7.<OώμώΫFTΡO8ώΐώ#sBI‹‹L?‹ώi#*c    › Π	    3##7FR8Y2|²[µ	ώq[“ύΝSώlS”  ό ™  	     !7'7!%'!73#Ύ)uώτώΟN1? #TM8DV<OώμZ€M…)\……i…M*ύμ??εώBI‹–ώ  	      	      % * .  !7'7!%''7!%'%'!7'73#Ύ)uώτώΟN1? #TM8DύqFTώ«8It[?[*RSeO8ώΐώ#s.€M…)\……i…M*ύμ??εύ‚L?‹8Fώ\*)*Fύάcγώi#*c€ώ    8      ! '  !!''%'!7'7!%'%'-‘)uύΨNTTA=[2#TM8DV<OώμώΫFTώ«8It[?[*RS)\iiώ2G"*ύμ??εώBI‹‹L?‹8Fώ\*)*Fύάcγ     1          $  !!''!7'!'3#3#-‘)uύΨNϊ#TM8DV<OώμW?[*RSύx#O8ύv#ƒQ…\€M…)\i*ύμ??εώBI‹ZFύάcγώi#*φηύyώ       η      !!'''!'-‘)uύΨNTTA=[#8It[I#O8ύv#)\iiώ2G"ύoFώ\*)ύϋi#*     1          !!'''!'3#3#-‘)uύΨNϊ#TM8D?[*RSύx#O8ύv#ƒQ…\€M…)\i*ύμ??εύ³Fύάcγώi#*φηύyώ     η      !  !!''!7'7!%'!'-‘)uύΨNTTA=[j<OώμώΫFTώ«8It[I#O8ύv#)\iiώ2G"ύΒBI‹‹L?‹8Fώ\*)ύϋi#*      ?η       !!''!7'7!%'-‘)uύΨNTTA=[j<OώμώΫFTώ«8It[)\iiώ2G"ύΒBI‹‹L?‹8Fώ\*)     η      "  !!''!7'%'!'-‘)uύΨNTTA=[j<Oώμώ‡8It[?[*RSύx#O8ύv#)\iiώ2G"ύΒBI‹SFώ\*)*Fύάcγώi#*    8p      !  '%'!7'7!%'%'ηTTA=[2#TM8DV<OώμώΫFTώ«8It[?[*RSpiώ2G"*ύμ??εώBI‹‹L?‹8Fώ\*)*Fύάcγ  1  η      !!'!'3#3#-‘)uύΨNX#O8ύv#ƒQ…\€M…)\iϋi#*φηύyώ        b      ''%'!'φ#TM8Dύ8It[?[*RSύx#O8ύv#b*ύμ??εύΊFώ\*)*Fύάcγώi#*      ?vp  
+     ''7!%'#73#ηTTA=[1FTώ«8It[²[µÒR8Y2piώ2G"ύ7L?‹8Fώ\*)uSώlS”ύxώq[“     p     ''!'ηTTA=[#8It[I#O8ύv#piώ2G"ύoFώ\*)ύϋi#*    8p      # '  '%''%'#7%3#3#ηTTA=[2#TM8Dύ8It[?[*RSJ²[µώ'R8Y2‰€M…piώ2G"*ύμ??εύΊFώ\*)*Fύάcγ‰SώlS”ώq[“ύΞώ      8p      #  '%''%'3#3#ηTTA=[2#TM8Dύ8It[?[*RSώR8Y2R8Y2piώ2G"*ύμ??εύΊFώ\*)*Fύάcγ‹ώq[“ύΝώq[“              #  !!''%''%'!'-‘)uύΨNTTA=[2#TM8Dύ8It[?[*RSύx#O8ύv#)\iiώ2G"*ύμ??εύΊFώ\*)*Fύάcγώi#*       ?      !  !!''%'!7'7!%'-‘)uύΨNTTA=[2#TM8DV<OώμώΫFTώ«8It[)\iiώ2G"*ύμ??εώBI‹‹L?‹8Fώ\*)             # )  !!''%''%'!'3#-‘)uύΨNTTA=[2#TM8Dύ8It[?[*RSύx#O8ύv#R8Y2)\iiώ2G"*ύμ??εύΊFώ\*)*Fύάcγώi#*Uώq[“     ?      ! '  !!''%'!7'7!%'3#-‘)uύΨNTTA=[2#TM8DV<OώμώΫFTώ«8It[ςR8Y2)\iiώ2G"*ύμ??εώBI‹‹L?‹8Fώ\*)ώq[“   1  η      !  !!''!7'7!%'!'-‘)uύΨNTTA=[j<OώμώΫFT{?[*RSύx#O8ύv#)\iiώ2G"ύΒBI‹‹L?‹1Fύάcγώi#*   ό ™η  	   !!'3#3#-‘)uύΨNΡƒQ…\€M…)\iύΆηύyώ       p       '%''%'!'ηTTA=[2#TM8Dύ8It[?[*RSύx#O8ύv#piώ2G"*ύμ??εύΊFώ\*)*Fύάcγώi#* 7 8b      ''3#3#φ#TM8D?[*RSώR8Y2R8Y2b*ύμ??εύ³Fύάcγ‹ώq[“ύΝώq[“     8p      ! '  '%''%'%3#3#'#7ηTTA=[2#TM8Dύ8It[?[*RSώ΅ƒQ…1R8Y2‹²[µpiώ2G"*ύμ??εύΊFώ\*)*FύάcγΆηύxώq[“WSώlS”     › •v	      #7%3#3#'#7v²[µώ'R8Y2R8Y2‹²[µSώlS”ώq[“ύΝώq[“WSώlS”   i ™p       '%'!7'7!3#ηTTA=[2#TM8DV<OώμώΫFT6€M…piώ2G"*ύμ??εώBI‹‹L?‹ώ   1  η      !!'!'#7#7-‘)uύΨNX#O8ύv#E²[µώ”²[µ)\iϋi#*έSώlS”ύxSώlS”       l  
+    '7!%'''7JN1?ώ‘TTA=[#8It[#si…[iώ2G"ύoFώ\*)ύn*c 7 •Χ	    3#3#FR8Y2R8Y2	ώq[“ύΝώq[“     
+    !7''!7Ύ)uώτ{#TM8D?[*RSeO8ώΐ)\…8*ύμ??εύ³Fύάcγώi#   1     	  %!7'7ΗO8ώΐώ#si#*c    7Π	   3#FR8Y2	ώq[“             ! '  !!''!7'7!%'%'!'-‘)uύΨNϊ#TM8DV<OώμώΫFTώ«8It[?[*RSύx#O8ύv#)\i*ύμ??εώBI‹‹L?‹8Fώ\*)*Fύάcγώi#*       °p  
+    !  '!7'7!%'%'!'ηTTA=[j<OώμώΫFTώ«8It[?[*RSύx#O8ύv#piώ2G"ύΒBI‹‹L?‹8Fώ\*)*Fύάcγώi#*        j  	    !7'7!%'!'.<OώμώΫFTώ«8It[I#O8ύv#BI‹‹L?‹8Fώ\*)ύϋi#*       b  
+    !  '!7'7!%'%'!'φ#TM8DV<OώμώΫFTώ«8It[?[*RSύx#O8ύv#b*ύμ??εώBI‹‹L?‹8Fώ\*)*Fύάcγώi#*              ! '  !!''%'!7'7!%'!'-‘)uύΨNTTA=[2#TM8DV<OώμώΫFTώ«8It[I#O8ύv#)\iiώ2G"*ύμ??εώBI‹‹L?‹8Fώ\*)ύϋi#*    ?η       !!''!7'7!%'-‘)uύΨNTTA=[j<OώμώΫFTώ«8It[)\iiώ2G"ύΒBI‹‹L?‹8Fώ\*)  1        ! '  !!''%'!7'7!%'!'-‘)uύΨNTTA=[2#TM8DV<OώμώΫFT{?[*RSύx#O8ύv#)\iiώ2G"*ύμ??εώBI‹‹L?‹1Fύάcγώi#*       8°p  
+     '!7'7!%'%'ηTTA=[j<OώμώΫFTώ«8It[?[*RSpiώ2G"ύΒBI‹‹L?‹8Fώ\*)*Fύάcγ      ?;p    ''ηTTA=[#8It[piώ2G"ύoFώ\*)       b      ''%'!'φ#TM8Dύ8It[?[*RSύx#O8ύv#b*ύμ??εύΊFώ\*)*Fύάcγώi#*      ?vp  
+     ''7!%'#73#ηTTA=[1FTώ«8It[²[µÒR8Y2piώ2G"ύ7L?‹8Fώ\*)uSώlS”ύxώq[“     p     ''!'ηTTA=[#8It[I#O8ύv#piώ2G"ύoFώ\*)ύϋi#*    8°  	     !7'7!%'%'%3#.<OώμώΫFTώ«8It[?[*RSώ”€M…BI‹‹L?‹8Fώ\*)*Fύάcγώ       8°  	    !7'7!%'%'.<OώμώΫFTώ«8It[?[*RSBI‹‹L?‹8Fώ\*)*Fύάcγ      °  	     !7'7!%'%'!'.<OώμώΫFTώ«8It[?[*RSύx#O8ύv#BI‹‹L?‹8Fώ\*)*Fύάcγώi#*      ?      !  !!''%'!7'7!%'-‘)uύΨNTTA=[2#TM8DV<OώμώΫFTώ«8It[)\iiώ2G"*ύμ??εώBI‹‹L?‹8Fώ\*)    i 8      !  !!''%'!7'7!%'-‘)uύΨNTTA=[2#TM8DV<OώμώΫFT{?[*RS)\iiώ2G"*ύμ??εώBI‹‹L?‹1Fύάcγ      ?j  	   !7'7!%'.<OώμώΫFTώ«8It[BI‹‹L?‹8Fώ\*)  1  η      !  !!''!7'7!%'!'-‘)uύΨNTTA=[j<OώμώΫFT{?[*RSύx#O8ύv#)\iiώ2G"ύΒBI‹‹L?‹1Fύάcγώi#*      jp  
+     '!7'7!%'!'ηTTA=[j<OώμώΫFTώ«8It[I#O8ύv#piώ2G"ύΒBI‹‹L?‹8Fώ\*)ύϋi#*        °Γ     '%'!'΅8It[?[*RSύx#O8ύv#ΓFώ\*)*Fύάcγώi#*    7 8b      ''3#3#φ#TM8D?[*RSώR8Y2R8Y2b*ύμ??εύ³Fύάcγ‹ώq[“ύΝώq[“      °Γ      '%'!'3#΅8It[?[*RSύx#O8ύv#€M…ΓFώ\*)*Fύάcγώi#*Vώ  › •v	      #7%3#3#'#7v²[µώ'R8Y2R8Y2‹²[µSώlS”ώq[“ύΝώq[“WSώlS”   1  p      !  '%'!7'7!%'!'ηTTA=[2#TM8DV<OώμώΫFT{?[*RSύx#O8ύv#piώ2G"*ύμ??εώBI‹‹L?‹1Fύάcγώi#*  1  η      !!'!'#7#7-‘)uύΨNX#O8ύv#E²[µώ”²[µ)\iϋi#*έSώlS”ύxSώlS”    ―  η  	     !7'7!!73#3#Ύ)uώτώzFTΡO8ώΐƒQ…\€M…)\…όρL?‹ώi#”ηύyώ «ώ^K)   3#«  )ψ5    1  j  	     '7!!7'73#3#JN1?Ψ<Oώμώ:#s;ƒQ…\€M…i…ώBI‹όκ*c ηύyώ     ^,›n   #"&#"5>32326›?v9<λ;3qI@v7@λ74qnH3a8TI4c8       j  	      !7'7!%'!7'73#.<OώμώΫFTώ«8It[lO8ώΐώ#s.€M…BI‹‹L?‹8Fώ\*)ύϊi#*c€ώ  1  η  	     "  !7!7'7!!7'73##7Ύ)uώτ³<OώμώΫFTΡO8ώΐώ#s;ƒQ…i²[µ)\…ύ|BI‹‹L?‹ώi#*c ηύxSώlS”  zL{N  K  3276767654'&'&'&#"'7676327'#"'&''7&'&5476^)::)(		();:('
+	EvPv,7,-)*9-vPuuPv-8*+*+9-vPv 0(()::)(	'(:;.vQvvQu.8*+*+8.uQv  vQu.9**,+7   ― ™v	  	     !7'7!#7%3#3#.<OώμώΫFT€²[µώ'R8Y2‰€M…BI‹‹L?‹|SώlS”ώq[“ύΞώ  «ώ^K*    3#3#«    sόλΜόλ    ªώ`L®  T  67654'#&'&'&#"67654%.54767'.547676;2#&'&'#"5+"&=3!8)I[;CN^©qHHώΔ{iYCg({iYR†	BΒ3KFON^•oe/4l.7e|™BΒ3KDA%Ae=BYI{όζ?@e}—@’h”YA@’h”YO!ΒQ3/YI„‰C™o«o'8>Mn«pf!ΒQ3-    Ρv]  '  7632#"/&54%7632#"/&54ίGE
+EL	{GE
+EL		HIKVHJLW    dÿξ&°  / Z  2#"$'&5476$3267>54&'.#"".54>323273#&'&+2653H‘hfqqjiώτ•’ώψjjoohfώ³_ffabς‡‰υaahh]`ψ†‰ϊτ€ƒτ„&J'*H,4OHKV΅)!u[H^|5Α°qheώξ’“ώςiimoih•”ghqώύ`χ‰τa`fe_bχ‡†ϋ^`ggϋÒκ~~μ…Ζ^~rZ^yΞ1(pFd.Q  ® °K    3#3#®VΝΝVΝΝί/%ώφώφ%//%ώφώφ%    Wÿ   !#!WHbύÿώ   dÿξ&°  9 Q i  ;>7654'.#;!53254/"';!53254+5!2#"$'&5476$3267>54&'.#"ο!=0ARd2"ώ¦-EK**$5ώΔ+%%+d@=<A@β‘hfqqjiώτ•’ώψjjoohfώ³_ffabς‡‰υaahh]`ψ†‰ϊKώ8E?25Cs%ύυt22Uf*y22yyF))’ON‘2qheώξ’“ώςiimoih•”ghqώύ`χ‰τa`fe_bχ‡†ϋ^`gg   i‹΅  
+    '7!%''7!'3#JN1?ώ‘TTA=[1FT)ƒQ…i…[iώ2G"ύ7L?‹•η     1  j  	      !7'7!!7'73#3#.<OώμώΫFTΡO8ώΐώ#s;ƒQ…\€M…BI‹‹L?‹ώi#*c ηύyώ   ^ v   #7v²[µSώlS”     ?p       '%'!7'7!%'ηTTA=[2#TM8DV<OώμώΫFTώ«8It[piώ2G"*ύμ??εώBI‹‹L?‹8Fώ\*)     ]  ΅›   ####.5463΅R¦T®ΛΧ²›Fϊ«Uϊ«β½—ΐ  8{F   7632#"/&54‘RPP	X
+δTVXe  hώ^      32654'&#"73672#"'hUCB91(>0?% V`ufmPώή4+--°hQILY    e °    7#553#553sΝΝVΝΝV°%
+
+%ώΡώΡ%
+
+%ώΡ          
+     '7!%'!7'73#υFTώ«8It[lO8ώΐώ#s;ƒQ…‹L?‹8Fώ\*)ύϊi#*c η          	     % + 0 5 9 ? E I O U  !7'7!%'%'!7'7!%'%'!7'73#!#7%3#3#3#'#7Ύ)uώτώΟN1?ώ‘TTA=[2#TM8DV<OώμώΫFTώ«8It[?[*RSeO8ώΐώ#s;ƒQ…Z²[µώ'R8Y2‰€M…ίR8Y2‹²[µ)\……i…[iώ2G"*ύμ??εώBI‹‹L?‹8Fώ\*)*Fύάcγώi#*c ηSώlS”ώq[“ύΞώζώq[“WSώlS”    ΅sU'   '7'77ϋχcχχcχψbχχcjχcχψbχχcχχc  W μ―   ,  5!7632#"/&547632#"/&54WGύοRPP	X
+RPP	X
+‡‹οTVXeΕTVXe      ΪΎ   %;!53254+5673Hd.ώF.do0ή'0ί­22­°M,Eq  έ7#   3#'έθvθ:ιι7cώΨΨ  έ6#   373#έ:ιι:θvΦΦώ    ώ«(   5!ώ«}}     Ϋ7#E   332673#"&Ϋ3tmmr3”{z–EIDCJ…‰  vo]   7>32#"&/.546¦EGG
+K	HL	LW    O7²    32654&#"4632#"&›:**:;));LfJLggLJfι*::*(;;(KfgJKgg qώ^α     !3267#"&5467€GO6.(;$mAFXye>s7/8!?DG7L΅7    όη  	  !7'7!Ύ)uώτώΟN1?)\……i…     Ω7&    >323>32Ω+(Νγ+(Ν7,&(&Τ,&(&Τ    8£   5!8δ£xx      £    5! £xx  Ίψ¶)   "&5463?,YDIψƒVmλ++“w**  wψs)   2#5674'5ξ,YDI)ƒVmλ++“w**   wώθs   2#5674'5ξ,YDIƒVmλ++“w**   Ίψ)    "&5463"&5463?,YDIκ,YDIψƒVmλ++“w**}ƒVmλ++“w**    wψΤ)    2#5674'5%2#5674'5ξ,YDIΨ,YDI)ƒVmλ++“w**}ƒVmλ++“w**    wώθΤ    2#5674'5%2#5674'5ξ,YDIΨ,YDIƒVmλ++“w**}ƒVmλ++“w**    Gώς° 2  &'&5463267632#"'&'#67#"&54632ζ.9H<9K7.	`Qe1<7- hU^fj&lf	`Re1;7, iUώaQe1;7, iU^.9H<9K7.°eώ4ύώΜe°
+-9H<9K8.    Fώς― [  %67632#"'&'#"&54767#"&54632&'67#"&54632&'&5463267632#"'&'^Uh -7<1eQ`	.7K9<H9.^Ui ,7;1eR`	ff	`Re1;7, iU^.9H<9K7.	`Qe1<7- hU^ffΊ.7K9<H9.^Ui ,7;1eQa	.8K9<H9-
+β¬«β
+-9H<9K8.	aQe1;7, iU^.9H<9K7.β«¬   Ψ¥(υ   4632#"&Ψ®{z­―z{¬Ξ{¬­zz―®  ÿϋΡ	  ' ;  ?632#"/&54%7632#"/&54%7632#"/&54‘RPP	X
+»RPP	X
+»RPP	X
+§TVXeTVXeTVXe  ® °   3#®VΝΝί/%ώφώφ%   e °Ι   7#553sΝΝV°%
+
+%ώΡ   ώªÿγª   3ώª¬TόVµϊK    0  * *  #534+5!#&#"!2=3#54#!3#;!5325χΒΒg`“g1;ƒώΔfid22dώ—ΒΒfaύΠ`ge<άλ2η¶λώ ?:ώª<>ώη<Hλ22λ    L  ¨® 6  &+"!!!!!27!7654/#53&'#53&54632#&μHXdZT!|ώ`ώΏ#Ά’‚;1gύ1»"¬‡q$χ»Kέ:Ce]”jk<<?K΅Φ„η2ξ΄MB<<kVβς΅=   0ÿν―  0 z  327>7654'.'&#"#'7;27654%.547%#"'&';!53254+5!323!6732#.#""'&#"#"&'#™)C9;
+	DvUB88
+}³"5G17;9F\;;ώύeVIώ8)2¶cd[!faύΠ`gg`j\Y[42
+Ψ2*D6*{H@Mλz[Sf~:/|chύj	f3,†nW\tΝ*#ώ$ύSQ&ΐ‚,,45Sf|4xUyIe]r@ώΟλ22λ`λ2<>sq|cώBTI<lp7}[[Trw―  ―  η  	      !7!7'7!!73#3#Ύ)uώτ³<OώμώΫFTΡO8ώΐƒQ…\€M…)\…ύ|BI‹‹L?‹ώi#”ηύyώ     Mÿη©³  1  327>7654'.'&+#".54>32& '5  θ_G@@FsaGA?DtΑqΝppΝqtΞlmgTώΥ±2Ά)&zΨ95ƒrIL*+zΫ82rT…„ξ„„ξ„ƒπ‚Aλ7ύΖ       1    	!	!ώj!ώ–ϋΥ«ϋΠϊf    0ώ^» #  ";!53254+5!#";!53254#ÿffaύΠ`gg`‹affaύΠ`gghλϊÿλ33λλ22λϊÿλ22λλ  xώ`x   	!273!527	&#5!#&#!#όμ{‚;1gόg>,—ύi,>™g1;‚ώ$όn¶θ25[92θ¶  ―‹j  	  !7'7!.<OώμώΫFTBI‹‹L?‹          373#µ¤JUΨ–Hg#ΉΎ<     B`·:  + O  &'&#"327>7327>76=.'&#"67>32#"&'&'#".54>32·;.&1W3. /W;RE6
+>oC:%'Cx0	"zCCzDDzCCz"	^44`33`44^σg
+E2.,0R
+CT`90P=66<a	j#"Xb`®__®`bW##IPR‘ML’RPH ÿΈώηΥ΄   "=3;27677632#.#"<$CR! FΨ~<$DGZIέώη++ΆΆή>ξ++ώΙΠύηώ†   ^›  '  #"&#"5>32326#"&#"5>32326›?v9<λ;3qI@v7@λ74qI?v9<λ;3qI@v7@λ74qH3a8TI4c8ώψH3a8TI4c8   W Ω    	5	5!ύqόΈHόΈG2ώ™ώ§αSδϋ(‹   W Ω    5	5!WHόΈqύGΩώSώ§cgϋΠ‹      (ζ        4          ;        4        ;        ;       0 S       
+ ƒ      
+ ?     Π     Μ     ά     θ     ψ  	   h  	  
